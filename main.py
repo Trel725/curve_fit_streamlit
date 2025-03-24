@@ -47,12 +47,14 @@ def arrhenius(x, a, e, c):
     return a * np.exp(-e / (R * T))
 
 
-def model(x, a, e, c):
-    return np.log(arrhenius(x, a, e, c))
+def log_arrhenius(x, log_a, e, c):
+    R = 8.314
+    T = T_0 + x * c
+    return log_a - e / (R * T)
+
 
 def linear_model(x, a, b):
     return a + b * x
-
 
 
 # Option 1: File Upload
@@ -72,7 +74,7 @@ if uploaded_file:
 else:
     # Option 2: Manual Data Entry (Spreadsheet)
     st.subheader("Or Enter Data Manually")
-    df = pd.DataFrame({"I": np.arange(1, 6), "k": np.exp(-20/np.arange(1, 6))})
+    df = pd.DataFrame({"I": np.arange(1, 6), "k": np.exp(-20 / np.arange(1, 6))})
     df = st.data_editor(df, num_rows="dynamic")
 
 x_data = df.values[:, 0]
@@ -96,12 +98,15 @@ if not df.empty:
         try:
             for method in ["lm", "trf", "dogbox"]:
                 try:
-                    params, _ = curve_fit(model, x_data, np.log(y_data), p0=[a_guess, e_guess, c_guess], method=method)
+                    params, _ = curve_fit(
+                        log_arrhenius, x_data, np.log(y_data), p0=[np.log(a_guess), e_guess, c_guess], method=method
+                    )
                     break
                 except:
                     pass
             else:
                 raise ValueError("Fitting failed")
+            params[0] = np.exp(params[0]) # Convert back to A
             a_fit, b_fit, c_fit = params
             st.success(f"Arrhenius parameters: A={a_fit:.3e}, E_a={b_fit:.3e}, C={c_fit:.3e}")
 
@@ -109,7 +114,7 @@ if not df.empty:
             # Calculate R^2 for Arrhenius model
             residuals = y_data - arrhenius(x_data, *params)
             ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((y_data - np.mean(y_data))**2)
+            ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
             r2_arrhenius = 1 - (ss_res / ss_tot)
 
             fig, ax = plt.subplots()
@@ -128,7 +133,7 @@ if not df.empty:
             # Calculate R^2 for linear model
             residuals_linear = y_data - linear_model(x_data, *linear_params)
             ss_res_linear = np.sum(residuals_linear**2)
-            ss_tot_linear = np.sum((y_data - np.mean(y_data))**2)
+            ss_tot_linear = np.sum((y_data - np.mean(y_data)) ** 2)
             r2_linear = 1 - (ss_res_linear / ss_tot_linear)
 
             st.success(f"Linear parameters: a={a_linear:.3e}, b={b_linear:.3e}")
@@ -136,7 +141,9 @@ if not df.empty:
             # Plot linear fit
             fig, ax = plt.subplots()
             ax.scatter(x_data, y_data, label="Data", color="blue")
-            ax.plot(x_data, linear_model(x_data, *linear_params), label=f"Linear Fit (R²={r2_linear:.3f})", color="green")
+            ax.plot(
+                x_data, linear_model(x_data, *linear_params), label=f"Linear Fit (R²={r2_linear:.3f})", color="green"
+            )
             ax.legend()
             ax.set_title(f"a={a_linear:.3e}, b={b_linear:.3e}")
             ax.set_xlabel(df.columns[0])
