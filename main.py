@@ -104,7 +104,7 @@ if not df.empty:
     # Convert DataFrame to numpy for fitting
 
     if st.button("Run Fitting"):
-        eps = 1e-5
+        eps = 1e-9
         last_error = None
         try:
             for method in ["lm", "trf", "dogbox"]:
