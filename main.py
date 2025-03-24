@@ -82,9 +82,18 @@ y_data = df.values[:, 1]
 
 # Inputs for initial guess of model parameters
 st.subheader("Initial Guess for Model Parameters")
-a_guess = st.number_input("A", value=y_data.mean())
-e_guess = st.number_input("E_a", value=1000.0)
-c_guess = st.number_input("C", value=0.0001)
+col1, col2 = st.columns(2)
+
+with col1:
+    a_fixed = st.checkbox("Fix A", value=False)
+    e_fixed = st.checkbox("Fix E_a", value=False)
+    c_fixed = st.checkbox("Fix C", value=False)
+
+with col2:
+    a_guess = st.number_input("A", value=1e5)
+    e_guess = st.number_input("E_a", value=1000.0)
+    c_guess = st.number_input("C", value=0.0001)
+
 T_0 = st.number_input("Ambient temperature assumed", value=298.0)
 
 # Ensure data is not empty
@@ -95,18 +104,31 @@ if not df.empty:
     # Convert DataFrame to numpy for fitting
 
     if st.button("Run Fitting"):
+        eps = 1e-5
+        last_error = None
         try:
             for method in ["lm", "trf", "dogbox"]:
                 try:
-                    params, _ = curve_fit(
-                        log_arrhenius, x_data, np.log(y_data), p0=[np.log(a_guess), e_guess, c_guess], method=method
+                    p0 = [np.log(a_guess), e_guess, c_guess]
+                    bounds = (
+                        [
+                            -np.inf if not a_fixed else np.log(a_guess) * (1 - eps),
+                            -np.inf if not e_fixed else e_guess * (1 - eps),
+                            -np.inf if not c_fixed else c_guess * (1 - eps),
+                        ],
+                        [
+                            np.inf if not a_fixed else np.log(a_guess),
+                            np.inf if not e_fixed else e_guess,
+                            np.inf if not c_fixed else c_guess,
+                        ],
                     )
+                    params, _ = curve_fit(log_arrhenius, x_data, np.log(y_data), p0=p0, bounds=bounds, method=method)
                     break
-                except:
-                    pass
+                except Exception as e:
+                    last_error = e
             else:
-                raise ValueError("Fitting failed")
-            params[0] = np.exp(params[0]) # Convert back to A
+                raise ValueError(f"Fitting failed, {repr(last_error)}")
+            params[0] = np.exp(params[0])  # Convert back to A
             a_fit, b_fit, c_fit = params
             st.success(f"Arrhenius parameters: A={a_fit:.3e}, E_a={b_fit:.3e}, C={c_fit:.3e}")
 
